@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:whos_this_pokemon/screens/generation_selector_screen.dart';
 
-import 'screens/pokemon_quiz_screen.dart';
 
 void main() {
-  runApp(
-    const PokemonQuizApp(),
-  );
+  runApp(const PokemonQuizApp());
 }
 
 class PokemonQuizApp extends StatelessWidget {
@@ -24,7 +22,8 @@ class PokemonQuizApp extends StatelessWidget {
           seedColor: Colors.blue,
         ),
       ),
-      home: const PokemonQuizScreen(),
+      // home: const PokemonQuizScreen(chosenGenerations: [Generation.gen1, Generation.gen2]),
+      home: GenerationSelectorScreen(),
     );
   }
 }

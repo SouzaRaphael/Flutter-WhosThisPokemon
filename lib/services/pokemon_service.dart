@@ -23,4 +23,20 @@ class PokemonService {
 
     return Pokemon.fromJson(json);
   }
+
+  Future<String> getPokemonName(int id) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/pokemon/$id'),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erro ao carregar Pokémon.',
+      );
+    }
+
+    final Map<String, dynamic> json = jsonDecode(response.body);
+
+    return json['name'];
+  }
 }

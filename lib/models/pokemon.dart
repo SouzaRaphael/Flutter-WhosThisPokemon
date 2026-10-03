@@ -17,7 +17,7 @@ class Pokemon {
 
     final types = (json['types'] as List)
         .map(
-          (item) => item['type']['name'].toString(),
+          (item) => translatedTypes[item['type']['name'].toString()] ?? '',
         )
         .toList();
 
@@ -28,4 +28,25 @@ class Pokemon {
       types: types,
     );
   }
+
+  static const Map<String, String> translatedTypes = {
+    "normal": "Normal",
+    "grass": "Planta",
+    "fire": "Fogo",
+    "water": "Água",
+    "electric": "Elétrico",
+    "bug": "Inseto",
+    "flying": "Voador",
+    "rock": "Pedra",
+    "poison": "Venenoso",
+    "ground": "Terrestre",
+    "ice": "Gelo",
+    "fighting": "Lutador",
+    "psychic": "Psíquico",
+    "ghost": "Fantasma",
+    "dragon": "Dragão",
+    "dark": "Sombrio",
+    "steel": "Aço",
+    "fairy": "Fada"
+  };
 }

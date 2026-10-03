@@ -1,32 +1,37 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:whos_this_pokemon/screens/components/header.dart';
+import 'package:whos_this_pokemon/screens/enum/generation.dart';
+import 'package:whos_this_pokemon/services/assets_service.dart';
 
 import '../../models/pokemon.dart';
 import '../../services/pokemon_service.dart';
-import 'game_status.dart';
+import 'enum/game_status.dart';
 
 class PokemonQuizScreen extends StatefulWidget {
-  const PokemonQuizScreen({super.key});
+  const PokemonQuizScreen({super.key, required this.chosenGenerations});
+
+  final List<Generation> chosenGenerations;
 
   @override
   State<PokemonQuizScreen> createState() => _PokemonQuizScreenState();
 }
 
 class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
-  final PokemonService pokemonService = PokemonService();
-
-  final TextEditingController answerController = TextEditingController();
+  final pokemonService = PokemonService();
+  final assetsService = AssetsService();
 
   final Random random = Random();
+
+  late final List<String> availablePokemonsNames;
+  late final List<int> availablePokemonsIds;
 
   Pokemon? pokemon;
 
   GameStatus status = GameStatus.loading;
-
-  int score = 0;
-  int hits = 0;
-  int errors = 0;
 
   String userAnswer = '';
   String? hint;
@@ -35,14 +40,21 @@ class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
   void initState() {
     super.initState();
 
-    loadPokemon();
+    init();
   }
 
-  @override
-  void dispose() {
-    answerController.dispose();
+  Future<void> init() async {
+    final pokedexPokemonNames = await assetsService.getPokemonNames();
 
-    super.dispose();
+    availablePokemonsNames = [];
+    availablePokemonsIds = [];
+
+    for (var generation in widget.chosenGenerations) {
+      availablePokemonsNames.addAll(pokedexPokemonNames.getRange(generation.firstPokemonId - 1, generation.lastPokemonId - 1));
+      availablePokemonsIds.addAll(List.generate(generation.lastPokemonId - generation.firstPokemonId + 1, (index) => generation.firstPokemonId + index));
+    }
+
+    await loadPokemon();
   }
 
   Future<void> loadPokemon() async {
@@ -50,11 +62,10 @@ class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
       status = GameStatus.loading;
       hint = null;
       userAnswer = '';
-      answerController.clear();
     });
 
     try {
-      final id = random.nextInt(386) + 1;
+      final id = availablePokemonsIds[random.nextInt(availablePokemonsIds.length) + 1];
 
       final result = await pokemonService.getPokemon(id);
 
@@ -84,9 +95,7 @@ class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
       return;
     }
 
-    final answer = answerController.text.trim();
-
-    if (answer.isEmpty) {
+    if (userAnswer.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Digite o nome do Pokémon.')),
       );
@@ -95,18 +104,10 @@ class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
     }
 
     setState(() {
-      userAnswer = answer;
-
-      if (normalize(answer) == normalize(currentPokemon.name)) {
+      if (userAnswer == currentPokemon.name) {
         status = GameStatus.correct;
-
-        hits++;
-        score += 10;
       } else {
         status = GameStatus.wrong;
-
-        errors++;
-        score = max(0, score - 5);
       }
     });
   }
@@ -127,15 +128,6 @@ class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
     });
   }
 
-  String normalize(String value) {
-    return value
-        .trim()
-        .toLowerCase()
-        .replaceAll('♀', '-f')
-        .replaceAll('♂', '-m')
-        .replaceAll(' ', '-');
-  }
-
   @override
   Widget build(BuildContext context) {
     if (status == GameStatus.loading) {
@@ -143,30 +135,23 @@ class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quem é esse Pokémon?'),
+      appBar: Header(
+        showBackButton: true,
         actions: [
           TextButton(onPressed: loadPokemon, child: const Text('Pular')),
-        ],
+        ]
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
+            constraints: BoxConstraints(maxWidth: 600, maxHeight: MediaQuery.sizeOf(context).height - kToolbarHeight - 60),
             child: SizedBox(
               width: double.infinity,
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Text(
-                      'Pontos: $score | Acertos: $hits | Erros: $errors',
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
                   Center(
                     child: Image.network(
                       pokemon!.imageUrl,
@@ -181,12 +166,32 @@ class _PokemonQuizScreenState extends State<PokemonQuizScreen> {
                   const SizedBox(height: 24),
 
                   if (status == GameStatus.playing) ...[
-                    TextField(
-                      controller: answerController,
-                      decoration: const InputDecoration(
-                        labelText: 'Digite o nome do Pokémon',
-                        border: OutlineInputBorder(),
-                      ),
+                    Autocomplete<String>(
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        if (textEditingValue.text.isEmpty) {
+                          return const Iterable<String>.empty();
+                        }
+                        return availablePokemonsNames.where((name) => name
+                            .toLowerCase()
+                            .startsWith(textEditingValue.text.toLowerCase())
+                        );
+                      },
+                      onSelected: (name) => setState(() => userAnswer = name),
+                        fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) =>
+                        TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            hintText: 'Digite o pokemon...',
+                            prefixIcon: const Icon(Icons.search),
+                            filled: true,
+                            fillColor: Colors.grey.shade100,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        )
                     ),
 
                     const SizedBox(height: 16),
